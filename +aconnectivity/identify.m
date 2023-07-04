@@ -23,6 +23,7 @@ function [innet,ind] = identify(n,i,T)
         
         % check is nonzero (is connected)
         %ic = find(diag(n(l(:,1),l(:,2))));
+        clear ic
 
         for ik = 1:size(l,1)
             ic(ik) = n(l(ik,1),l(ik,2));

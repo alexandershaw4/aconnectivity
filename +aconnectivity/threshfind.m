@@ -12,13 +12,14 @@ it = 0;
 while iterate
     it = it + 1;
     if r > p;
-        k = k - 0.1*e;
+        k = k - 0.1*abs(e);
     elseif r < p
-        k = k + 0.1*e;
+        k = k + 0.1*abs(e);
     end
 
     n = aconnectivity.thresh(net,k);
     r = corr(net(:),n(:)).^2;
+    e = (r-p)./p;
 
     fprintf('it: %d: r^2 = %d (e = %d)\n',it,r,e);
 

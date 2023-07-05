@@ -21,7 +21,7 @@ function [b,G,stats] = aglm(X,y)
 % computes weights
 iC = pinv(cov(X));iC(1,:) = 1; iC(:,1) = 1;
 
-% fir the model ('\' picks appropriate algorithm?)
+% fit the model 
 b  = (pinv(X*iC*X')*X*iC)'*y;
 
 % full model

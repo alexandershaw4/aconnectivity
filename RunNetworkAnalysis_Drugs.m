@@ -25,13 +25,16 @@
 % note this script requires 'aconnectivity' toolbox for analysis functions
 % and atemplate (SourceMesh toolbox) for plotting.
 
+method = 'nnmf'; % can be nnmf, svd, eig or pca
 
- cd('/Users/alexandershaw/Library/CloudStorage/Dropbox/PSI_KET_2023/');
+
+cd('/Users/alexandershaw/Library/CloudStorage/Dropbox/PSI_KET_2023/');
 
 % load each of the saved frequency specific corr mats:
 freqs = {'DeltaFC' 'ThetaFC' 'AlphaFC' 'BetaFC' 'Gamma1FC' 'Gamma2FC'};
 
 load HCP360.mat
+v = aconnectivity.roicentres(reduced.v,reduced.vi);
 
 for k = 1:6;
     PSI = load(['PSILO/' freqs{k}]);
@@ -59,13 +62,36 @@ for k = 1:6;
     
     % work in reduced (thresh-network) space: rM = M*V
     V  = aconnectivity.computereducedoperator(M);
-    rM = M*V';    
-    K  = 8;
+    rM = M*V';   
+
+    K  = 6;
     
     % STEP 2: non-negative matrix factorisation: 
     % data-driven identification of "subnetworks"
     %--------------------------------------------------------------------
-    [W,H] = nnmf(rM,K);
+    switch method
+        case 'nnmf';
+            [W,H] = nnmf(rM,K,'replicates',20);
+        case 'svd';
+            [W,S,H] = svd(rM);
+
+            W = W(:,1:K);
+            S = S(1:K,1:K);
+            H = H(:,1:K)';
+            W = W*S;
+
+        case 'eig'
+            [H,W] = eigs(cov(rM),K);
+            H = H';
+
+        case 'pca';
+            [W,S,H] = svd(cov(rM),'econ');
+
+            W = W(:,1:K);
+            S = S(1:K,1:K);
+            H = H(:,1:K)';
+            W = W*S;
+    end
 
     % reconstruct subnetworks in full space
     for i = 1:K
@@ -75,21 +101,20 @@ for k = 1:6;
     % map all components connected to a hub
     %--------------------------------------------------------------------
     for i = 1:K
-        X0 = sn{i};
-        v = aconnectivity.roicentres(reduced.v,reduced.vi);
-        [indices{i},subnet{i}] = aconnectivity.definesubnet(X0,v,[],0.9);
+        X0 = sn{i};   
+        [indices{i},subnet{i}] = aconnectivity.definesubnet(X0,[],[],0.9);
     end
 
     % reverse create right side of nnmf from subnetworks
     for i = 1:K
-        subnet{i} = (subnet{i}+subnet{i}')/2;
-        HH(i,:) = V*subnet{i}(:);
+        subnet{i}  = (subnet{i}+subnet{i}')/2;
+        HH(i,:)    = V*subnet{i}(:);
         REGLABS{i} = labels(find(sum(reshape(HH(i,:)*V,[360 360]))));
     end
     
     % STEP 3: set up design matrix for regression/GLM/ANOVA model
     %--------------------------------------------------------------------
-    X = [ones(64,1) [-1*ones(15,1);ones(15,1);-1*ones(17,1);ones(17,1)] ...
+    X = [ones(64,1) [0*ones(15,1);ones(15,1);0*ones(17,1);ones(17,1)] ...
         [zeros(15,1);ones(15,1);zeros(17,1);zeros(17,1)]...
         [zeros(15,1);zeros(15,1);zeros(17,1);ones(17,1)]...
         [[eye(15);eye(15)];zeros(17*2,15)] [zeros(15*2,17);eye(17);eye(17)] ];
@@ -98,7 +123,7 @@ for k = 1:6;
     % STEP 4: Fit the model using weighted least squares estimator
     % the minimum-variance unbiased estimator (Gauss-Markov theorem)
     %--------------------------------------------------------------------
-    [b,G,stats] = aconnectivity.aglm(X,rM*pinv(HH));
+    [b,G,stats] = aconnectivity.aglm(X,rM*H');
 
     % NOTE: this "full model" is in subnetwork space, so we are testing for
     % predictor effects not on all connections but K-different networks
@@ -133,8 +158,13 @@ for k = 1:6;
     astats(k).Rpsi  = Rpsi;
     astats(k).Rket  = Rket;
     astats(k).Rdrug = Rdrug;
+
+    % save also matrix factorisation and subnetwork
+    astats(k).W     = W;
+    astats(k).H     = H;
+    astats(k).HH    = HH;
     
-    % save aloso GLM stat data
+    % save also GLM stat data
     astats(k).stats = stats;
 
 
@@ -143,7 +173,7 @@ for k = 1:6;
     for i = 1:K
 
         % the subject-by-region-by-region map
-        netmap{i} = reshape( G(:,i)*HH(i,:)*V, [size(G,1) 360 360]);
+        netmap{i} = reshape( W(:,i)*HH(i,:)*V, [size(G,1) 360 360]);
         
         % generate mean change values for plots
         CompChKpsi{i} = squeeze( mean( netmap{i}(16:30,:,:) - netmap{i}(1:15,:,:),1) );
@@ -162,7 +192,7 @@ for k = 1:6;
         
         % PSI plot
         net0 = squeeze(CompChKpsi{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'nocolbar','fighnd',s);
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'nocolbar','fighnd',s,'nodes',sum(net0));
         
         t = astats(k).Rpsi.tseries_corr(i);
         p = astats(k).Rpsi.pseries_corr(i);
@@ -171,9 +201,9 @@ for k = 1:6;
         set(findall(gca, 'type', 'text'), 'visible', 'on');
 
         % KET plot
-        s = subplot(3,sp,i+8);
+        s = subplot(3,sp,i+K);
         net1 = squeeze(CompChKket{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'nocolbar','fighnd',s);
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'nocolbar','fighnd',s,'nodes',sum(net0));
 
         t = astats(k).Rket.tseries_corr(i);
         p = astats(k).Rket.pseries_corr(i);
@@ -182,9 +212,9 @@ for k = 1:6;
         set(findall(gca, 'type', 'text'), 'visible', 'on');
 
         % DIFF PLOT
-        s = subplot(3,sp,i+16);
+        s = subplot(3,sp,i+(2*K));
         netx = net0 - net1;
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'nocolbar','fighnd',s);
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'nocolbar','fighnd',s,'nodes',sum(net0));
 
         t = astats(k).Rdrug.tseries_corr(i);
         p = astats(k).Rdrug.pseries_corr(i);
@@ -195,7 +225,7 @@ for k = 1:6;
     end
 
     drawnow;
-    export_fig(['MeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
+    %export_fig(['MeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
 
 
 end

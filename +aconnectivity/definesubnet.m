@@ -32,10 +32,10 @@ if nargin > 1 && ~isempty(v)
     % use distances between physical nodes
     D = aconnectivity.cdist(v,v);
     ND = 1-(D./max(D(:)));
-    n = aconnectivity.threshfind(net.*ND,.8)./ND;
+    n = aconnectivity.threshfind(net.*ND,pc)./ND;
 else
     % or just use functinoal matrix
-    n = aconnectivity.threshfind(net,.8);
+    n = aconnectivity.threshfind(net,pc);
 end
 
 % hub index

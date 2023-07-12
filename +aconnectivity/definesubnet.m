@@ -1,4 +1,4 @@
-function [innet,netout] = definesubnet(net,v,ET,pc)
+function [innet,netout,clustersize] = definesubnet(net,v,ET,pc)
 % from a functional connectivity network, this routine will identify the
 % node with highest degree (most connected), then the whole network
 % attached to it s.t. assumption at least 'ET' number of edges must touch
@@ -25,23 +25,35 @@ if nargin < 4 || isempty(pc)
 end
 
 % preprep: symmetric and no diagonal
-net = net .* ~eye(length(net));
-net = (net + net') / 2;
+net  = net .* ~eye(length(net));
+net  = (net + net') / 2;
+netx = net;
+%wt   = aconnectivity.QtoGauss(ones(length(net),1),8);
+%net  = net.*wt;
 
-if nargin > 1 && ~isempty(v)
-    % use distances between physical nodes
-    D = aconnectivity.cdist(v,v);
-    ND = 1-(D./max(D(:)));
-    n = aconnectivity.threshfind(net.*ND,pc)./ND;
+if pc < 1
+    if nargin > 1 && ~isempty(v)
+        % use distances between physical nodes
+        D = aconnectivity.cdist(v,v);
+        ND = 1-(D./max(D(:)));
+        n = aconnectivity.threshfind(net.*ND,pc)./ND;
+    else
+        % or just use functinoal matrix
+        n = aconnectivity.threshfind(net,pc);
+    end
 else
-    % or just use functinoal matrix
-    n = aconnectivity.threshfind(net,pc);
+    fprintf('Skipping thresholding\n');
+    n = net;
 end
+
+n = (n + n')./2;
 
 % hub index
 i = aconnectivity.hubi(n);
 
 [innet,st] = aconnectivity.identify(n,i,ET);
+
+% what to do if empty i.e. hub wrong component
 
 innet = [i st; innet];
 
@@ -53,6 +65,7 @@ while iterate
     l1 = size(innet,1);
 
     fprintf('it: %d clustersize = %d (%d %%-change)\n',cnt,l1,100*(l1-l0)./l0);
+    clustersize= l1;
 
     if l1 == l0;
         iterate = 0;

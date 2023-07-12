@@ -25,7 +25,7 @@
 % note this script requires 'aconnectivity' toolbox for analysis functions
 % and atemplate (SourceMesh toolbox) for plotting.
 
-method = 'nnmf'; % can be nnmf, svd, eig or pca
+method = 'nnmf'; % can be nnmf, svd, eig or pca, qr
 
 
 cd('/Users/alexandershaw/Library/CloudStorage/Dropbox/PSI_KET_2023/');
@@ -48,10 +48,10 @@ for k = 1:6;
          KET.(f1{contains(f1,'pla')})(:,:); KET.(f1{contains(f1,'ket')})(:,:) ];
     
     % indices for groups / studies:
-    % psipla = 1:15
-    % psipsi = 16:30;
-    % ketpla = 31:47
-    % ketket = 48:64
+    psipla = 1:15;
+    psipsi = 16:30;
+    ketpla = 31:47;
+    ketket = 48:64;
     
     % STEP 1: initial threshold
     %--------------------------------------------------------------------
@@ -61,7 +61,7 @@ for k = 1:6;
     M(:,b) = 0;
     
     % work in reduced (thresh-network) space: rM = M*V
-    V  = aconnectivity.computereducedoperator(M);
+    V  = aconnectivity.computereducedoperator(M,@var);
     rM = M*V';   
 
     K  = 6;
@@ -69,40 +69,76 @@ for k = 1:6;
     % STEP 2: non-negative matrix factorisation: 
     % data-driven identification of "subnetworks"
     %--------------------------------------------------------------------
-    switch method
-        case 'nnmf';
-            [W,H] = nnmf(rM,K,'replicates',20);
-        case 'svd';
-            [W,S,H] = svd(rM);
+    if K > 1
+        switch method
+            case 'nnmf';
+                [W,H] = nnmf(rM,K);%,'replicates',20);
+            case 'svd';
+                [W,S,H] = svd(rM);
+    
+                W = W(:,1:K);
+                S = S(1:K,1:K);
+                H = H(:,1:K)';
+                W = W*S;
+    
+            case 'eig'
+                [H,W] = eigs(cov(rM),K);
+                H = H';
+    
+            case 'pca';
+                [W,S,H] = svd(cov(rM),'econ');
+    
+                W = W(:,1:K);
+                S = S(1:K,1:K);
+                H = H(:,1:K)';
+                W = W*S;
+            case 'qr'
+                [q,r] = qr(rM);
 
-            W = W(:,1:K);
-            S = S(1:K,1:K);
-            H = H(:,1:K)';
-            W = W*S;
+                W = q(:,1:K);
+                H = r(1:K,:);
 
-        case 'eig'
-            [H,W] = eigs(cov(rM),K);
-            H = H';
+            case 'orth'
+                H = orth(rM')';
+                H = H(1:K,:);
 
-        case 'pca';
-            [W,S,H] = svd(cov(rM),'econ');
-
-            W = W(:,1:K);
-            S = S(1:K,1:K);
-            H = H(:,1:K)';
-            W = W*S;
+            case 'pod';
+                [W,S,H] = pod(rM');
+        
+                S = diag(S);
+                W = W(:,1:K);
+                S = S(1:K,1:K);
+                H = H(:,1:K)';
+                W = W*S;
+            case 'lu'
+                [L,U] = lu(rM);
+                W = L(:,1:K);
+                H = U(1:K,:);
+                
+        end
+    else
+        H = ones(size(rM,2),1)';
     end
 
     % reconstruct subnetworks in full space
     for i = 1:K
         sn{i} = reshape(H(i,:)*V,[360 360]);
+        sn{i} = (sn{i} + sn{i}')./2;
     end
 
     % map all components connected to a hub
     %--------------------------------------------------------------------
     for i = 1:K
         X0 = sn{i};   
-        [indices{i},subnet{i}] = aconnectivity.definesubnet(X0,[],[],0.9);
+
+        [indices{i},subnet{i},clustersize(i)] = aconnectivity.definesubnet(X0,[],[],.98);
+        subnet{i} = (subnet{i}+subnet{i}')./2;
+
+        % if missed, re-try with no theresholding
+        if clustersize(i) == 0
+            [indices{i},subnet{i},clustersize(i)] = aconnectivity.definesubnet(X0,[],[],1);
+            subnet{i} = (subnet{i}+subnet{i}')./2;
+        end
     end
 
     % reverse create right side of nnmf from subnetworks
@@ -112,6 +148,9 @@ for k = 1:6;
         REGLABS{i} = labels(find(sum(reshape(HH(i,:)*V,[360 360]))));
     end
     
+    % normalise subnetwork weights
+    %HH = HH./norm(HH);
+
     % STEP 3: set up design matrix for regression/GLM/ANOVA model
     %--------------------------------------------------------------------
     X = [ones(64,1) [0*ones(15,1);ones(15,1);0*ones(17,1);ones(17,1)] ...
@@ -123,7 +162,7 @@ for k = 1:6;
     % STEP 4: Fit the model using weighted least squares estimator
     % the minimum-variance unbiased estimator (Gauss-Markov theorem)
     %--------------------------------------------------------------------
-    [b,G,stats] = aconnectivity.aglm(X,rM*H');
+    [b,G,stats] = aconnectivity.aglm(X,rM*HH');
 
     % NOTE: this "full model" is in subnetwork space, so we are testing for
     % predictor effects not on all connections but K-different networks
@@ -166,6 +205,68 @@ for k = 1:6;
     
     % save also GLM stat data
     astats(k).stats = stats;
+    astats(k).subjcomps = rM*HH';
+    astats(k).X = X;
+    astats(k).full = X*b*HH;
+
+
+    % compute relative subnet contribution for each subject
+    %projection = X*b*HH;
+    %for is = 1:size(rM,1)
+    %    bs(:,is) = HH'\projection(is,:)';
+    %end
+    %[hh,pp,~,sta] = ttest(bs(:,drug)',bs(:,pla)');
+
+    % display all the subnets by colour on a brain
+    everynet = zeros(360);
+    w = [-3 -2 -1 1 2 3];
+    for i = 1:K
+        Z = w(i) * ~~subnet{i};
+        everynet = everynet + Z;
+    end
+    afigure,atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
+        'network',everynet,'nodes',sum(everynet));
+
+    export_fig(['AllSubnets_' freqs{k} '.png'],'-m3','-transparent');
+    drawnow;
+    close;
+
+
+    % second analysis: how does drug change subnetwork weighting? in terms
+    % of probability: i.e. what is the probability of being in each
+    % subnetwork for each dataset?
+    %----------------------------------------------------------------------
+    P = (W' ./ sum(W'))';
+
+    [bP,PP,Pstats] = aconnectivity.aglm(X,P);
+
+    % assessment of drugs on different subnetworks - i.e. post-hoc tests
+    %--------------------------------------------------------------------
+    % PSI - PLA
+    Ppsi = aconnectivity.kRandTest(PP(16:30,:)-PP(1:15,:),[],0.05,5000);
+
+    % KET - PLA
+    Pket = aconnectivity.kRandTest(PP(48:64,:)-PP(31:47,:),[],0.05,5000);
+
+    % RMAN: (PSI-PLA) vs (KET-PLA)
+    Pdrug = aconnectivity.kRandTest(PP(16:30,:)-PP(1:15,:),PP(48:64,:)-PP(31:47,:),0.05,5000);
+
+    % save statistics
+    astats(k).ProbabSubnet_si  = Ppsi;
+    astats(k).ProbabSubnet_ket  = Pket;
+    astats(k).ProbabSubnet_drug = Pdrug;
+
+    % create plots
+    figure,hold on;
+
+    plot(1:6,mean(PP(psipla,:),1),'linewidth',3);
+    plot(1:6,mean(PP(psipsi,:),1),'linewidth',3);
+    plot(1:6,mean(PP(ketpla,:),1),'linewidth',3);
+    plot(1:6,mean(PP(ketket,:),1),'linewidth',3);
+
+    legend({'pPLA' 'PSI' 'kPLA' 'KET'});
+
+    export_fig(['ProbabilityOfSubnetByGroup_' freqs{k} '.png'],'-m3','-transparent');
 
 
     % generate individual networks and drug means for plot
@@ -192,7 +293,7 @@ for k = 1:6;
         
         % PSI plot
         net0 = squeeze(CompChKpsi{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'nocolbar','fighnd',s,'nodes',sum(net0));
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',alexcmap);
         
         t = astats(k).Rpsi.tseries_corr(i);
         p = astats(k).Rpsi.pseries_corr(i);
@@ -203,7 +304,7 @@ for k = 1:6;
         % KET plot
         s = subplot(3,sp,i+K);
         net1 = squeeze(CompChKket{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'nocolbar','fighnd',s,'nodes',sum(net0));
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',alexcmap);
 
         t = astats(k).Rket.tseries_corr(i);
         p = astats(k).Rket.pseries_corr(i);
@@ -214,7 +315,7 @@ for k = 1:6;
         % DIFF PLOT
         s = subplot(3,sp,i+(2*K));
         netx = net0 - net1;
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'nocolbar','fighnd',s,'nodes',sum(net0));
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',alexcmap);
 
         t = astats(k).Rdrug.tseries_corr(i);
         p = astats(k).Rdrug.pseries_corr(i);
@@ -225,7 +326,7 @@ for k = 1:6;
     end
 
     drawnow;
-    %export_fig(['MeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
+    export_fig(['MeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
 
 
 end

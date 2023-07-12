@@ -17,6 +17,11 @@ function [innet,ind] = identify(n,i,T)
         
         % neighbours to seed
         l = aconnectivity.ineighb([i(j) ind]);
+        
+        % or switch to all connected:
+        %rl = find(n(i(j),:));
+        %l = [rl(:) ones(length(rl),1)*i(j)];
+
 
         % check neighbours exist e.g. at edge of grid
         l = aconnectivity.checkneighb(l,n);

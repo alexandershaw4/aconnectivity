@@ -3,6 +3,7 @@ function net = thresh(net,np)
 if size(net,1) == size(net,2)
     sym = 1;
     net = net.*~eye(length(net));
+else sym = 0;
 end
 
 n = net(:);

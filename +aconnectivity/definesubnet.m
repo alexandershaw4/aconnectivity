@@ -1,4 +1,4 @@
-function [innet,netout,clustersize] = definesubnet(net,v,ET,pc)
+function [innet,netout,clustersize,hub] = definesubnet(net,v,ET,pc)
 % from a functional connectivity network, this routine will identify the
 % node with highest degree (most connected), then the whole network
 % attached to it s.t. assumption at least 'ET' number of edges must touch
@@ -49,11 +49,25 @@ end
 n = (n + n')./2;
 
 % hub index
-i = aconnectivity.hubi(n);
+i   = aconnectivity.hubi(n);
+hub = i;
 
+% fixed to not only be nextdoor
 [innet,st] = aconnectivity.identify(n,i,ET);
 
 % what to do if empty i.e. hub wrong component
+if isempty(innet)
+    search = true;
+    while search
+        n(i,:) = 0;
+        n(:,i) = 0;
+    
+        i = aconnectivity.hubi(n);
+    
+        [innet,st] = aconnectivity.identify(n,i,ET);
+    end
+
+end
 
 innet = [i st; innet];
 
@@ -76,6 +90,9 @@ netout = net*0;
 for i = 1:length(innet)
     netout(innet(i,1),innet(i,2)) = n(innet(i,1),innet(i,2));
 end
+
+netout = (triu(netout) + triu(netout')) + (tril(netout) + tril(netout)') ;
+netout = netout./2;
 
 end
 

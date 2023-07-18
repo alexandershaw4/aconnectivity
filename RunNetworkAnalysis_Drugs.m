@@ -25,7 +25,16 @@
 % note this script requires 'aconnectivity' toolbox for analysis functions
 % and atemplate (SourceMesh toolbox) for plotting.
 
-method = 'nnmf'; % can be nnmf, svd, eig or pca, qr
+% I believe this is the ref for the HCP360:
+% https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4990127/
+%
+% Glasser MF, Coalson TS, Robinson EC, Hacker CD, Harwell J, Yacoub E, 
+% Ugurbil K, Andersson J, Beckmann CF, Jenkinson M, Smith SM, Van Essen DC. 
+% A multi-modal parcellation of human cerebral cortex. 
+% Nature. 2016 Aug 11;536(7615):171-178. doi: 10.1038/nature18933. 
+% Epub 2016 Jul 20. PMID: 27437579; PMCID: PMC4990127.
+
+method = 'orthopca'; % can be nnmf, svd, eig or pca, qr
 
 
 cd('/Users/alexandershaw/Library/CloudStorage/Dropbox/PSI_KET_2023/');
@@ -46,6 +55,8 @@ for k = 1:6;
     f1 = fieldnames(KET);
     M = [PSI.(f0{contains(f0,'pla')})(:,:); PSI.(f0{contains(f0,'psi')})(:,:);
          KET.(f1{contains(f1,'pla')})(:,:); KET.(f1{contains(f1,'ket')})(:,:) ];
+   
+    M = denan(M);
     
     % indices for groups / studies:
     psipla = 1:15;
@@ -114,9 +125,16 @@ for k = 1:6;
                 [L,U] = lu(rM);
                 W = L(:,1:K);
                 H = U(1:K,:);
+            
+            case 'ica';
+                [H,A,W] = fastica(rM,'numOfIC',K);
+                W = pinv(W);
+            case 'orthopca'
+                [W,H] = aconnectivity.orthopca(rM,K,'nnmf');
+                H = H';
                 
         end
-    else
+    el
         H = ones(size(rM,2),1)';
     end
 
@@ -124,6 +142,7 @@ for k = 1:6;
     for i = 1:K
         sn{i} = reshape(H(i,:)*V,[360 360]);
         sn{i} = (sn{i} + sn{i}')./2;
+        sn{i} = sn{i}.*~eye(length(sn{i}));
     end
 
     % map all components connected to a hub
@@ -131,12 +150,12 @@ for k = 1:6;
     for i = 1:K
         X0 = sn{i};   
 
-        [indices{i},subnet{i},clustersize(i)] = aconnectivity.definesubnet(X0,[],[],.98);
+        [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,[],[],.98);
         subnet{i} = (subnet{i}+subnet{i}')./2;
 
         % if missed, re-try with no theresholding
         if clustersize(i) == 0
-            [indices{i},subnet{i},clustersize(i)] = aconnectivity.definesubnet(X0,[],[],1);
+            [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,[],[],1);
             subnet{i} = (subnet{i}+subnet{i}')./2;
         end
     end
@@ -218,14 +237,22 @@ for k = 1:6;
     %[hh,pp,~,sta] = ttest(bs(:,drug)',bs(:,pla)');
 
     % display all the subnets by colour on a brain
-    everynet = zeros(360);
-    w = [-3 -2 -1 1 2 3];
+    % everynet = zeros(360);
+    % w = [-3 -2 -1 1 2 3];
+    % for i = 1:K
+    %     Z = w(i) * ~~subnet{i};
+    %     everynet = everynet + Z;
+    % end
+    % afigure,atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
+    %     'network',everynet,'nodes',sum(everynet),'netcmap',jet);
+
+    afigure
     for i = 1:K
-        Z = w(i) * ~~subnet{i};
-        everynet = everynet + Z;
+        Z = subnet{i};
+        s = subplot(2,3,i);
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
+           'network',Z,'nodes',sum(Z),'fighnd',s,'netcmap',cmocean('balance')); 
     end
-    afigure,atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
-        'network',everynet,'nodes',sum(everynet));
 
     export_fig(['AllSubnets_' freqs{k} '.png'],'-m3','-transparent');
     drawnow;
@@ -237,6 +264,7 @@ for k = 1:6;
     % subnetwork for each dataset?
     %----------------------------------------------------------------------
     P = (W' ./ sum(W'))';
+    P = denan(P);
 
     [bP,PP,Pstats] = aconnectivity.aglm(X,P);
 
@@ -293,7 +321,7 @@ for k = 1:6;
         
         % PSI plot
         net0 = squeeze(CompChKpsi{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',alexcmap);
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));%'netcmap',alexcmap
         
         t = astats(k).Rpsi.tseries_corr(i);
         p = astats(k).Rpsi.pseries_corr(i);
@@ -304,7 +332,7 @@ for k = 1:6;
         % KET plot
         s = subplot(3,sp,i+K);
         net1 = squeeze(CompChKket{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',alexcmap);
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
 
         t = astats(k).Rket.tseries_corr(i);
         p = astats(k).Rket.pseries_corr(i);
@@ -315,7 +343,7 @@ for k = 1:6;
         % DIFF PLOT
         s = subplot(3,sp,i+(2*K));
         netx = net0 - net1;
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',alexcmap);
+        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
 
         t = astats(k).Rdrug.tseries_corr(i);
         p = astats(k).Rdrug.pseries_corr(i);
@@ -331,4 +359,4 @@ for k = 1:6;
 
 end
 
-save('ResultsPSI_BestSoFar')
+save('PSIKET_ResultsBestSoFar')

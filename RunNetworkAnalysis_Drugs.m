@@ -34,7 +34,7 @@
 % Nature. 2016 Aug 11;536(7615):171-178. doi: 10.1038/nature18933. 
 % Epub 2016 Jul 20. PMID: 27437579; PMCID: PMC4990127.
 
-method = 'orthopca'; % can be nnmf, svd, eig or pca, qr
+method = 'orthopca'; % can be nnmf, svd, eig, pca, qr, pod, lu or orthopca
 
 
 cd('/Users/alexandershaw/Library/CloudStorage/Dropbox/PSI_KET_2023/');
@@ -130,11 +130,12 @@ for k = 1:6;
                 [H,A,W] = fastica(rM,'numOfIC',K);
                 W = pinv(W);
             case 'orthopca'
+                % this is my PCA/NNMFA with exclusivity membership constraint
                 [W,H] = aconnectivity.orthopca(rM,K,'nnmf');
                 H = H';
                 
         end
-    el
+    else
         H = ones(size(rM,2),1)';
     end
 
@@ -172,9 +173,9 @@ for k = 1:6;
 
     % STEP 3: set up design matrix for regression/GLM/ANOVA model
     %--------------------------------------------------------------------
-    X = [ones(64,1) [0*ones(15,1);ones(15,1);0*ones(17,1);ones(17,1)] ...
-        [zeros(15,1);ones(15,1);zeros(17,1);zeros(17,1)]...
-        [zeros(15,1);zeros(15,1);zeros(17,1);ones(17,1)]...
+    X = [ones(64,1) [-1*ones(15,1);ones(15,1);-1*ones(17,1);ones(17,1)] ...
+        [zeros(15,1)-1;ones(15,1);zeros(17,1)-1;zeros(17,1)-1]...
+        [zeros(15,1)-1;zeros(15,1)-1;zeros(17,1)-1;ones(17,1)]...
         [[eye(15);eye(15)];zeros(17*2,15)] [zeros(15*2,17);eye(17);eye(17)] ];
     
 
@@ -227,6 +228,10 @@ for k = 1:6;
     astats(k).subjcomps = rM*HH';
     astats(k).X = X;
     astats(k).full = X*b*HH;
+    astats(k).indices = indices;
+    astats(k).hub = hub;
+    astats(k).clustersize = clustersize;
+    astats(k).netlabs = REGLABS;
 
 
     % compute relative subnet contribution for each subject

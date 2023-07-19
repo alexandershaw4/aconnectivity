@@ -6,12 +6,17 @@ rowName = labels;
 colName = labels;
 
 dataMat = (dataMat + dataMat')./2;
-
 i = find(sum(dataMat));
 
 
-CC=chordChart(dataMat(i,i),'rowName',rowName(i),'colName',colName(i));
-CC=CC.draw();
+% % convert to to/from/val list
+% [node1,node2,vals] = conmat2nodes(dataMat(i,i),'test','sourcemodel',[(1:length(i))' (1:length(i))']);
+% 
+% list = [node1(:,1) node2(:,1)];
+
+
+CC = chordChart(dataMat(i,i),'rowName',rowName(i),'colName',colName(i));
+CC = CC.draw();
 
 %CC.setChordColorByMap([0,0,.8;.8,0,0])
 

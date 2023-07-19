@@ -242,15 +242,20 @@ for k = 1:6;
     %[hh,pp,~,sta] = ttest(bs(:,drug)',bs(:,pla)');
 
     % display all the subnets by colour on a brain
-    % everynet = zeros(360);
-    % w = [-3 -2 -1 1 2 3];
-    % for i = 1:K
-    %     Z = w(i) * ~~subnet{i};
-    %     everynet = everynet + Z;
-    % end
-    % afigure,atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
-    %     'network',everynet,'nodes',sum(everynet),'netcmap',jet);
+    everynet = zeros(360);
+    w = [-3 -2 -1 1 2 3];
+    for i = 1:K
+        Z = w(i) * ~~subnet{i};
+        everynet = everynet + Z;
+    end
+    afigure,D=atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
+        'network',everynet,'nodes',sum(everynet),'netcmap',distinguishable_colors(6));
+    D.mesh.h.FaceAlpha = .1;
+    export_fig(['AllSubnetsOnBrain_' freqs{k} '.png'],'-m3','-transparent');
+    drawnow;
+    close;
 
+    % display each subnet separately on brain
     afigure
     for i = 1:K
         Z = subnet{i};
@@ -262,6 +267,20 @@ for k = 1:6;
     export_fig(['AllSubnets_' freqs{k} '.png'],'-m3','-transparent');
     drawnow;
     close;
+
+
+    % display each subnet separately on chord plot
+    
+    for i = 1:K
+        Z = subnet{i};
+        afigure;
+        achordplot(Z,labels);cmocean('balance');
+        %colorbar('southoutside');
+
+        export_fig(['AllSubnets_' freqs{k} '_subnet_' num2str(i) '.png'],'-m3','-transparent');
+        drawnow;
+        close;
+    end
 
 
     % second analysis: how does drug change subnetwork weighting? in terms
@@ -315,7 +334,7 @@ for k = 1:6;
 
     end
 
-    % plot
+    % plot - brains
     %--------------------------------------------------------------------
     figure('Position',[1225         217        2800        1364]) 
     fname = {'Delta' 'Theta' 'Alpha' 'Beta' 'Gamma1' 'Gamma2'};
@@ -361,6 +380,54 @@ for k = 1:6;
     drawnow;
     export_fig(['MeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
 
+    % plot - chord
+    %--------------------------------------------------------------------
+    figure('Position',[1225         217        2800        1364]) 
+    fname = {'Delta' 'Theta' 'Alpha' 'Beta' 'Gamma1' 'Gamma2'};
+
+    sp = K;%ceil(K/2);
+    for i = 1:K
+        s = subplot(3,sp,i);
+        
+        % PSI plot
+        net0 = squeeze(CompChKpsi{i});
+        achordplot(net0,labels);cmocean('balance');
+        %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));%'netcmap',alexcmap
+        
+        t = astats(k).Rpsi.tseries_corr(i);
+        p = astats(k).Rpsi.pseries_corr(i);
+
+        title(sprintf([fname{k} ' C%d PSI v PLA\nt=%d, p=%d'],i,t,p));
+        set(findall(gca, 'type', 'text'), 'visible', 'on');
+
+        % KET plot
+        s = subplot(3,sp,i+K);
+        net1 = squeeze(CompChKket{i});
+        achordplot(net1,labels);cmocean('balance');
+        %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+
+        t = astats(k).Rket.tseries_corr(i);
+        p = astats(k).Rket.pseries_corr(i);
+
+        title(sprintf([fname{k} ' C%d KET v PLA\nt=%d, p=%d'],i,t,p));
+        set(findall(gca, 'type', 'text'), 'visible', 'on');
+
+        % DIFF PLOT
+        s = subplot(3,sp,i+(2*K));
+        netx = net0 - net1;
+        achordplot(netx,labels);cmocean('balance');
+        %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+
+        t = astats(k).Rdrug.tseries_corr(i);
+        p = astats(k).Rdrug.pseries_corr(i);
+
+        title(sprintf([fname{k} ' C%d PSI v KET\nt=%d, p=%d'],i,t,p));
+        set(findall(gca, 'type', 'text'), 'visible', 'on');
+
+    end
+
+    drawnow;
+    export_fig(['ChordPlotMeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
 
 end
 

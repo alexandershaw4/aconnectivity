@@ -1,5 +1,9 @@
-function [innet,ind] = identify(n,i,T)    
+function [innet,ind] = identify(n,i,T,flagneighb)    
     
+    if nargin < 4 
+        flagneighb = 0;
+    end
+
     innet = [];
 
     if nargin < 3 || isempty(T)
@@ -27,9 +31,10 @@ function [innet,ind] = identify(n,i,T)
         l = aconnectivity.ineighb([i(j) ind]);
 
         % or switch to all connected:
-        %rl = find(n(i(j),:));
-        %l = [rl(:) ones(length(rl),1)*i(j)];
-
+        if flagneighb
+            rl = find(n(i(j),:));
+            l = [rl(:) ones(length(rl),1)*i(j)];
+        end
 
         % check neighbours exist e.g. at edge of grid
         l = aconnectivity.checkneighb(l,n);

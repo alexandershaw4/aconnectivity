@@ -34,7 +34,7 @@
 % Nature. 2016 Aug 11;536(7615):171-178. doi: 10.1038/nature18933. 
 % Epub 2016 Jul 20. PMID: 27437579; PMCID: PMC4990127.
 
-method = 'nnmf'; % can be nnmf, svd, eig, pca, qr, pod, lu or orthopca
+method = 'orthopca'; % can be nnmf, svd, eig, pca, qr, pod, lu or orthopca
 
 
 cd('/Users/alexandershaw/Library/CloudStorage/Dropbox/PSI_KET_2023/');
@@ -151,7 +151,7 @@ for k = 1:6;
     for i = 1:K
         X0 = sn{i};   
 
-        [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,v,[],1);
+        [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,v,[],.9);
         subnet{i} = (subnet{i}+subnet{i}')./2;
 
         % if missed, re-try with no theresholding
@@ -273,7 +273,7 @@ for k = 1:6;
     
     for i = 1:K
         Z = subnet{i};
-        afigure;
+        figure('Position',[1032          77        1751        1417]) 
         achordplot((Z),labels);cmocean('balance');
         %colorbar('southoutside');
 
@@ -382,18 +382,18 @@ for k = 1:6;
 
     % plot - chord
     %--------------------------------------------------------------------
-    figure('Position',[1225         217        2800        1364]) 
+    figure('Position',[1032          77        1751        1417]) 
     fname = {'Delta' 'Theta' 'Alpha' 'Beta' 'Gamma1' 'Gamma2'};
 
     sp = K;%ceil(K/2);
     for i = 1:K
         s = subplot(3,sp,i);
-        
+
         % PSI plot
         net0 = squeeze(CompChKpsi{i});
         achordplot(net0,labels);cmocean('balance');
         %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));%'netcmap',alexcmap
-        
+
         t = astats(k).Rpsi.tseries_corr(i);
         p = astats(k).Rpsi.pseries_corr(i);
 

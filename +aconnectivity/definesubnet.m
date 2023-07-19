@@ -47,13 +47,14 @@ else
 end
 
 n = (n + n')./2;
+n = denan(n);
 
 % hub index
 i   = aconnectivity.hubi(n);
 hub = i;
 
 % fixed to not only be nextdoor
-[innet,st] = aconnectivity.identify(n,i,ET);
+[innet,st] = aconnectivity.identify(n,i,ET,1);
 
 % what to do if empty i.e. hub wrong component
 if isempty(innet)

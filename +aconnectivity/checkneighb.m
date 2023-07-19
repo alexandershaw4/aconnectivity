@@ -4,7 +4,7 @@ function l = checkneighb(l,n);
     g = 1:size(l,1);
 
     for i = 1:size(l,1)
-        if l(i,1) > m || l(i,2) > m
+        if l(i,1) > m || l(i,2) > m || any(l(i,:) == 0)
             g(i) = 0;
         end
     end

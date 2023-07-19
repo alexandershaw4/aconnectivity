@@ -34,7 +34,7 @@
 % Nature. 2016 Aug 11;536(7615):171-178. doi: 10.1038/nature18933. 
 % Epub 2016 Jul 20. PMID: 27437579; PMCID: PMC4990127.
 
-method = 'orthopca'; % can be nnmf, svd, eig, pca, qr, pod, lu or orthopca
+method = 'nnmf'; % can be nnmf, svd, eig, pca, qr, pod, lu or orthopca
 
 
 cd('/Users/alexandershaw/Library/CloudStorage/Dropbox/PSI_KET_2023/');
@@ -131,7 +131,7 @@ for k = 1:6;
                 W = pinv(W);
             case 'orthopca'
                 % this is my PCA/NNMFA with exclusivity membership constraint
-                [W,H] = aconnectivity.orthopca(rM,K,'nnmf');
+                [W,H] = aconnectivity.orthopca(rM,K,'svd');
                 H = H';
                 
         end
@@ -151,12 +151,12 @@ for k = 1:6;
     for i = 1:K
         X0 = sn{i};   
 
-        [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,[],[],.98);
+        [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,v,[],1);
         subnet{i} = (subnet{i}+subnet{i}')./2;
 
         % if missed, re-try with no theresholding
         if clustersize(i) == 0
-            [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,[],[],1);
+            [indices{i},subnet{i},clustersize(i),hub{i}] = aconnectivity.definesubnet(X0,v,[],1);
             subnet{i} = (subnet{i}+subnet{i}')./2;
         end
     end
@@ -251,7 +251,7 @@ for k = 1:6;
     afigure,D=atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
         'network',everynet,'nodes',sum(everynet),'netcmap',distinguishable_colors(6));
     D.mesh.h.FaceAlpha = .1;
-    export_fig(['AllSubnetsOnBrain_' freqs{k} '.png'],'-m3','-transparent');
+    export_fig(['AllSubnetsOnBrain_' freqs{k} '_' method '.png'],'-m3','-transparent');
     drawnow;
     close;
 
@@ -264,7 +264,7 @@ for k = 1:6;
            'network',Z,'nodes',sum(Z),'fighnd',s,'netcmap',cmocean('balance')); 
     end
 
-    export_fig(['AllSubnets_' freqs{k} '.png'],'-m3','-transparent');
+    export_fig(['AllSubnets_' freqs{k} '_' method '.png'],'-m3','-transparent');
     drawnow;
     close;
 
@@ -274,10 +274,10 @@ for k = 1:6;
     for i = 1:K
         Z = subnet{i};
         afigure;
-        achordplot(Z,labels);cmocean('balance');
+        achordplot((Z),labels);cmocean('balance');
         %colorbar('southoutside');
 
-        export_fig(['AllSubnets_' freqs{k} '_subnet_' num2str(i) '.png'],'-m3','-transparent');
+        export_fig(['AllSubnets_' freqs{k} '_subnet_' num2str(i) '_' method '.png'],'-m3','-transparent');
         drawnow;
         close;
     end
@@ -318,7 +318,7 @@ for k = 1:6;
 
     legend({'pPLA' 'PSI' 'kPLA' 'KET'});
 
-    export_fig(['ProbabilityOfSubnetByGroup_' freqs{k} '.png'],'-m3','-transparent');
+    export_fig(['ProbabilityOfSubnetByGroup_' freqs{k} '_' method '.png'],'-m3','-transparent');
 
 
     % generate individual networks and drug means for plot
@@ -378,7 +378,7 @@ for k = 1:6;
     end
 
     drawnow;
-    export_fig(['MeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
+    export_fig(['MeanChangeDrugeffects_' freqs{k} '_' method '.png'],'-m3','-transparent')
 
     % plot - chord
     %--------------------------------------------------------------------
@@ -427,8 +427,8 @@ for k = 1:6;
     end
 
     drawnow;
-    export_fig(['ChordPlotMeanChangeDrugeffects_' freqs{k} '.png'],'-m3','-transparent')
+    export_fig(['ChordPlotMeanChangeDrugeffects_' freqs{k} '_' method '.png'],'-m3','-transparent')
 
 end
 
-save('PSIKET_ResultsBestSoFar')
+save(['PSIKET_ResultsBestSoFar_' method])

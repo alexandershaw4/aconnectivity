@@ -54,6 +54,6 @@ for i = 1:length(node1)
     xline = xline(:).*wl(:);
     yline  =yline(:).*wl(:);
 
-    line(xline,yline,'color',strng);
+    line(xline,yline,'color',strng(i));
 
 end

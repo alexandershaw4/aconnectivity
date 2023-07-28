@@ -24,6 +24,25 @@ iC = pinv(cov(X));iC(1,:) = 1; iC(:,1) = 1;
 % fit the model 
 b  = (pinv(X*iC*X')*X*iC)'*y;
 
+% iterative fit
+% func = @(b) X*spm_unvec(b,b0);
+% Y  = y;
+% x0 = zeros(size(X,2),size(y,2)) + 1./length(x0(:));
+% x0 = x0(:);
+% V  = x0 + 1/8;
+% 
+% 
+% op = AO('options');
+% op.fun = func;       % function/model f(x0)
+% op.x0  = x0(:);      % start values: x0
+% op.y   = Y(:);       % data we're fitting (for computation of objective fun, e.g. e = Y - f(x)
+% op.V   = V(:);       % variance / step for each parameter, e.g. ones(length(x0),1)/8
+% op.hyperparams=0;
+% op.objective='gauss'; % select smooth Gaussian error function
+% 
+% [X,F,CV,~,Hi] = AO(op); 
+
+
 % full model
 G = X*b;
 r = y - G;

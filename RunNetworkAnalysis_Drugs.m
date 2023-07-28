@@ -45,7 +45,7 @@ freqs = {'DeltaFC' 'ThetaFC' 'AlphaFC' 'BetaFC' 'Gamma1FC' 'Gamma2FC'};
 load HCP360.mat
 v = aconnectivity.roicentres(reduced.v,reduced.vi);
 
-for k = 1:6;
+for k = 1;%:6;
     PSI = load(['PSILO/' freqs{k}]);
     KET = load(['KET/' freqs{k}]);
 
@@ -131,7 +131,7 @@ for k = 1:6;
                 W = pinv(W);
             case 'orthopca'
                 % this is my PCA/NNMFA with exclusivity membership constraint
-                [W,H] = aconnectivity.orthopca(rM,K,'svd');
+                [W,H] = aconnectivity.orthopca(rM,K,'nnmf');
                 H = H';
                 
         end
@@ -179,6 +179,9 @@ for k = 1:6;
         [[eye(15);eye(15)];zeros(17*2,15)] [zeros(15*2,17);eye(17);eye(17)] ];
     
 
+    X = X - mean(X);
+    X(:,1)=1;
+    
     % STEP 4: Fit the model using weighted least squares estimator
     % the minimum-variance unbiased estimator (Gauss-Markov theorem)
     %--------------------------------------------------------------------
@@ -248,7 +251,7 @@ for k = 1:6;
         Z = w(i) * ~~subnet{i};
         everynet = everynet + Z;
     end
-    afigure,D=atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
+    afigure,D=atemplate('mesh','def2','inflate',20,'sourcemodel',{reduced.v reduced.vi},...
         'network',everynet,'nodes',sum(everynet),'netcmap',distinguishable_colors(6));
     D.mesh.h.FaceAlpha = .1;
     export_fig(['AllSubnetsOnBrain_' freqs{k} '_' method '.png'],'-m3','-transparent');
@@ -260,8 +263,9 @@ for k = 1:6;
     for i = 1:K
         Z = subnet{i};
         s = subplot(2,3,i);
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},...
+        D=atemplate('mesh','def2','inflate',20,'sourcemodel',{reduced.v reduced.vi},...
            'network',Z,'nodes',sum(Z),'fighnd',s,'netcmap',cmocean('balance')); 
+        D.mesh.h.FaceAlpha = .1;
     end
 
     export_fig(['AllSubnets_' freqs{k} '_' method '.png'],'-m3','-transparent');
@@ -345,8 +349,9 @@ for k = 1:6;
         
         % PSI plot
         net0 = squeeze(CompChKpsi{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));%'netcmap',alexcmap
-        
+        D=atemplate('mesh','def2','inflate',20,'sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));%'netcmap',alexcmap
+        D.mesh.h.FaceAlpha = .1;
+
         t = astats(k).Rpsi.tseries_corr(i);
         p = astats(k).Rpsi.pseries_corr(i);
 
@@ -356,7 +361,8 @@ for k = 1:6;
         % KET plot
         s = subplot(3,sp,i+K);
         net1 = squeeze(CompChKket{i});
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+        D=atemplate('mesh','def2','inflate',20,'sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+        D.mesh.h.FaceAlpha = .1;
 
         t = astats(k).Rket.tseries_corr(i);
         p = astats(k).Rket.pseries_corr(i);
@@ -367,7 +373,8 @@ for k = 1:6;
         % DIFF PLOT
         s = subplot(3,sp,i+(2*K));
         netx = net0 - net1;
-        atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+        D=atemplate('mesh','def2','inflate',20,'sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+        D.mesh.h.FaceAlpha = .1;
 
         t = astats(k).Rdrug.tseries_corr(i);
         p = astats(k).Rdrug.pseries_corr(i);
@@ -382,52 +389,52 @@ for k = 1:6;
 
     % plot - chord
     %--------------------------------------------------------------------
-    figure('Position',[1032          77        1751        1417]) 
-    fname = {'Delta' 'Theta' 'Alpha' 'Beta' 'Gamma1' 'Gamma2'};
-
-    sp = K;%ceil(K/2);
-    for i = 1:K
-        s = subplot(3,sp,i);
-
-        % PSI plot
-        net0 = squeeze(CompChKpsi{i});
-        achordplot(net0,labels);cmocean('balance');
-        %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));%'netcmap',alexcmap
-
-        t = astats(k).Rpsi.tseries_corr(i);
-        p = astats(k).Rpsi.pseries_corr(i);
-
-        title(sprintf([fname{k} ' C%d PSI v PLA\nt=%d, p=%d'],i,t,p));
-        set(findall(gca, 'type', 'text'), 'visible', 'on');
-
-        % KET plot
-        s = subplot(3,sp,i+K);
-        net1 = squeeze(CompChKket{i});
-        achordplot(net1,labels);cmocean('balance');
-        %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
-
-        t = astats(k).Rket.tseries_corr(i);
-        p = astats(k).Rket.pseries_corr(i);
-
-        title(sprintf([fname{k} ' C%d KET v PLA\nt=%d, p=%d'],i,t,p));
-        set(findall(gca, 'type', 'text'), 'visible', 'on');
-
-        % DIFF PLOT
-        s = subplot(3,sp,i+(2*K));
-        netx = net0 - net1;
-        achordplot(netx,labels);cmocean('balance');
-        %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
-
-        t = astats(k).Rdrug.tseries_corr(i);
-        p = astats(k).Rdrug.pseries_corr(i);
-
-        title(sprintf([fname{k} ' C%d PSI v KET\nt=%d, p=%d'],i,t,p));
-        set(findall(gca, 'type', 'text'), 'visible', 'on');
-
-    end
-
-    drawnow;
-    export_fig(['ChordPlotMeanChangeDrugeffects_' freqs{k} '_' method '.png'],'-m3','-transparent')
+    % figure('Position',[1032          77        1751        1417]) 
+    % fname = {'Delta' 'Theta' 'Alpha' 'Beta' 'Gamma1' 'Gamma2'};
+    % 
+    % sp = K;%ceil(K/2);
+    % for i = 1:K
+    %     s = subplot(3,sp,i);
+    % 
+    %     % PSI plot
+    %     net0 = squeeze(CompChKpsi{i});
+    %     achordplot(net0,labels);cmocean('balance');
+    %     %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net0,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));%'netcmap',alexcmap
+    % 
+    %     t = astats(k).Rpsi.tseries_corr(i);
+    %     p = astats(k).Rpsi.pseries_corr(i);
+    % 
+    %     title(sprintf([fname{k} ' C%d PSI v PLA\nt=%d, p=%d'],i,t,p));
+    %     set(findall(gca, 'type', 'text'), 'visible', 'on');
+    % 
+    %     % KET plot
+    %     s = subplot(3,sp,i+K);
+    %     net1 = squeeze(CompChKket{i});
+    %     achordplot(net1,labels);cmocean('balance');
+    %     %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',net1,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+    % 
+    %     t = astats(k).Rket.tseries_corr(i);
+    %     p = astats(k).Rket.pseries_corr(i);
+    % 
+    %     title(sprintf([fname{k} ' C%d KET v PLA\nt=%d, p=%d'],i,t,p));
+    %     set(findall(gca, 'type', 'text'), 'visible', 'on');
+    % 
+    %     % DIFF PLOT
+    %     s = subplot(3,sp,i+(2*K));
+    %     netx = net0 - net1;
+    %     achordplot(netx,labels);cmocean('balance');
+    %     %atemplate('mesh','def1','sourcemodel',{reduced.v reduced.vi},'network',netx,'fighnd',s,'nodes',sum(net0),'netcmap',cmocean('balance'));
+    % 
+    %     t = astats(k).Rdrug.tseries_corr(i);
+    %     p = astats(k).Rdrug.pseries_corr(i);
+    % 
+    %     title(sprintf([fname{k} ' C%d PSI v KET\nt=%d, p=%d'],i,t,p));
+    %     set(findall(gca, 'type', 'text'), 'visible', 'on');
+    % 
+    % end
+    % 
+    % drawnow;
+    % export_fig(['ChordPlotMeanChangeDrugeffects_' freqs{k} '_' method '.png'],'-m3','-transparent')
 
 end
 

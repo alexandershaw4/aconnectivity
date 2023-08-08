@@ -54,11 +54,11 @@ i   = aconnectivity.hubi(n);
 hub = i;
 
 % fixed to not only be nextdoor
-[innet,st] = aconnectivity.identify(n,i,ET,1);
+[innet,st] = aconnectivity.identify(n,i,ET,0);
 
 % what to do if empty i.e. hub wrong component
 if isempty(innet)
-    search = true;
+    search = true; cnt = 0;
     while search
         n(i,:) = 0;
         n(:,i) = 0;
@@ -66,6 +66,12 @@ if isempty(innet)
         i = aconnectivity.hubi(n);
     
         [innet,st] = aconnectivity.identify(n,i,ET);
+
+        cnt = cnt + 1;
+
+        if cnt >= 1000
+            search = false;
+        end
     end
 
 end
@@ -73,7 +79,7 @@ end
 innet = [i st; innet];
 
 iterate = 1; cnt = 0;
-while iterate
+while iterate && cnt < 1000
     cnt = cnt + 1;
     l0 = size(innet,1);
     innet = aconnectivity.identify(n,innet,ET);
